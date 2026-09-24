@@ -569,32 +569,29 @@ function renderTable(data){
            CAN BE APPROVED / REJECTED
         */
 
-        if(
-            row.hr_status === "Waiting"
-        ){
+       if(
+    !row.hr_status ||
+    row.hr_status === "Waiting" ||
+    row.hr_status === "Pending"
+){
 
-            action = `
+    action = `
 
-            <button
-                class="approve-btn"
-                onclick="approveOT('${row.id}')">
+        <button
+            class="approve-btn"
+            onclick="approveOT('${row.id}')">
+            Approve
+        </button>
 
-                Approve
+        <button
+            class="reject-btn"
+            onclick="rejectOT('${row.id}')">
+            Reject
+        </button>
 
-            </button>
+    `;
 
-
-            <button
-                class="reject-btn"
-                onclick="rejectOT('${row.id}')">
-
-                Reject
-
-            </button>
-
-            `;
-
-        }
+}
 
         else{
 
