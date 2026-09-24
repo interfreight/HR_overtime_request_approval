@@ -9,7 +9,7 @@
 <title>INTERFREIGHT | HR Overtime Approval</title>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-
+<script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
 <style>
 
 *{
@@ -57,7 +57,17 @@ body{
     cursor:pointer;
     text-decoration:none;
 }
+.filter label {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    font-weight: 600;
+    color: #003366;
+}
 
+.filter button {
+    align-self: end;
+}
 /* STATS */
 
 .stats{
@@ -292,31 +302,37 @@ tr:hover{
         id="searchEmployee"
         placeholder="Search employee...">
 
-
     <select id="statusFilter">
 
-        <option value="ALL">
-            All HR Status
-        </option>
-
-        <option value="Waiting">
-            Waiting
-        </option>
-
-        <option value="Approved">
-            Approved
-        </option>
-
-        <option value="Rejected">
-            Rejected
-        </option>
+        <option value="ALL">All HR Status</option>
+        <option value="Waiting">Waiting</option>
+        <option value="Approved">Approved</option>
+        <option value="Rejected">Rejected</option>
 
     </select>
 
+    <label>
+        From Date
+        <input
+            type="date"
+            id="fromDate">
+    </label>
 
-    <input
-        type="date"
-        id="dateFilter">
+    <label>
+        To Date
+        <input
+            type="date"
+            id="toDate">
+    </label>
+
+    <button
+        class="btn"
+        type="button"
+        onclick="exportToExcel()">
+
+        📊 Export to Excel
+
+    </button>
 
 </div>
 
@@ -938,44 +954,151 @@ async function rejectOT(id){
 
 }
 
-
 /******************************************
 SEARCH / FILTER
 ******************************************/
 
 function applyFilters(){
 
-    let rows =
-    window.overtimeData || [];
+    let rows = window.overtimeData || [];
+
+    const employee =
+        document
+        .getElementById("searchEmployee")
+        .value
+        .toLowerCase();
+
+    const status =
+        document
+        .getElementById("statusFilter")
+        .value;
+
+    const fromDate =
+        document
+        .getElementById("fromDate")
+        .value;
+
+    const toDate =
+        document
+        .getElementById("toDate")
+        .value;
+
+
+    // Validate date range
+
+    if(fromDate && toDate && fromDate > toDate){
+
+        alert("From Date cannot be later than To Date.");
+
+        return;
+
+    }
+
+
+    rows = rows.filter(r => {
+
+
+        // Employee filter
+
+        if(
+            employee &&
+            !(r.employee_name || "")
+            .toLowerCase()
+            .includes(employee)
+        ){
+
+            return false;
+
+        }
+
+
+        // HR status filter
+
+        if(
+            status !== "ALL" &&
+            r.hr_status !== status
+        ){
+
+            return false;
+
+        }
+
+
+        // From Date filter
+
+        if(
+            fromDate &&
+            r.overtime_date < fromDate
+        ){
+
+            return false;
+
+        }
+
+
+        // To Date filter
+
+        if(
+            toDate &&
+            r.overtime_date > toDate
+        ){
+
+            return false;
+
+        }
+
+
+        return true;
+
+    });
+
+
+    renderTable(rows);
+
+}
+/******************************************
+EXPORT OVERTIME TO EXCEL
+******************************************/
+
+function exportToExcel(){
+
+    let rows = window.overtimeData || [];
 
 
     const employee =
-    document
-    .getElementById(
-        "searchEmployee"
-    )
-    .value
-    .toLowerCase();
-
+        document
+        .getElementById("searchEmployee")
+        .value
+        .toLowerCase();
 
     const status =
-    document
-    .getElementById(
-        "statusFilter"
-    )
-    .value;
+        document
+        .getElementById("statusFilter")
+        .value;
+
+    const fromDate =
+        document
+        .getElementById("fromDate")
+        .value;
+
+    const toDate =
+        document
+        .getElementById("toDate")
+        .value;
 
 
-    const date =
-    document
-    .getElementById(
-        "dateFilter"
-    )
-    .value;
+    if(fromDate && toDate && fromDate > toDate){
+
+        alert("From Date cannot be later than To Date.");
+
+        return;
+
+    }
 
 
-    rows =
-    rows.filter(r => {
+    // Apply the same filters used by the table
+
+    rows = rows.filter(r => {
 
 
         if(
@@ -1001,8 +1124,18 @@ function applyFilters(){
 
 
         if(
-            date &&
-            r.overtime_date !== date
+            fromDate &&
+            r.overtime_date < fromDate
+        ){
+
+            return false;
+
+        }
+
+
+        if(
+            toDate &&
+            r.overtime_date > toDate
         ){
 
             return false;
@@ -1015,55 +1148,134 @@ function applyFilters(){
     });
 
 
-    renderTable(rows);
+    if(rows.length === 0){
+
+        alert("No overtime records found for export.");
+
+        return;
+
+    }
+
+
+    // Prepare Excel data
+
+    const excelData = rows.map(row => ({
+
+        "Employee": row.employee_name || "",
+
+        "Department": row.department || "",
+
+        "Position": row.position || "",
+
+        "OT Date": row.overtime_date || "",
+
+        "Time In": row.time_in || "",
+
+        "Time Out": row.time_out || "",
+
+        "Total Hours": row.total_hours || "",
+
+        "Manager Status": row.department_status || "",
+
+        "Manager Approved By":
+            row.department_approved_by || "",
+
+        "Manager Approved Date":
+            row.department_approved_date
+            ? new Date(
+                row.department_approved_date
+            ).toLocaleString()
+            : "",
+
+        "HR Status": row.hr_status || "",
+
+        "HR Remarks": row.remarks || "",
+
+        "Attachment": row.attachment || ""
+
+    }));
+
+
+    // Create workbook
+
+    const worksheet =
+        XLSX.utils.json_to_sheet(excelData);
+
+    const workbook =
+        XLSX.utils.book_new();
+
+
+    XLSX.utils.book_append_sheet(
+        workbook,
+        worksheet,
+        "Overtime Records"
+    );
+
+
+    // Generate filename
+
+    let filename = "Overtime_Report";
+
+    if(fromDate && toDate){
+
+        filename += `_${fromDate}_to_${toDate}`;
+
+    }
+    else if(fromDate){
+
+        filename += `_from_${fromDate}`;
+
+    }
+    else if(toDate){
+
+        filename += `_until_${toDate}`;
+
+    }
+
+
+    filename += ".xlsx";
+
+
+    // Download Excel file
+
+    XLSX.writeFile(workbook, filename);
 
 }
-
-
 /******************************************
 FILTER EVENTS
 ******************************************/
 
 document
-.getElementById(
-    "searchEmployee"
-)
-.addEventListener(
-    "keyup",
-    applyFilters
-);
+.getElementById("searchEmployee")
+.addEventListener("keyup", applyFilters);
 
 
 document
-.getElementById(
-    "statusFilter"
-)
-.addEventListener(
-    "change",
-    applyFilters
-);
+.getElementById("statusFilter")
+.addEventListener("change", applyFilters);
 
 
 document
-.getElementById(
-    "dateFilter"
-)
-.addEventListener(
-    "change",
-    applyFilters
-);
+.getElementById("fromDate")
+.addEventListener("change", applyFilters);
 
 
+document
+.getElementById("toDate")
+.addEventListener("change", applyFilters);
 /******************************************
 AUTO REFRESH
 ******************************************/
 
 loadHistory();
 
-setInterval(
-    loadHistory,
-    5000
-);
+setInterval(async () => {
+
+    await loadHistory();
+
+    applyFilters();
+
+}, 5000);
 
 </script>
 
